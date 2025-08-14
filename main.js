@@ -1,19 +1,17 @@
-const { Client } = require('pg');
 const express = require('express');
 const app = express();
 app.use(express.json());
 const cors = require('cors');
+const con = require('./db'); 
 
-const con = new Client({
-    host: "localhost",
-    user: "postgres",
-    port: 5432,
-    password: "Raghul@22",
-    database: "chit" // ✅ make sure 'chit' DB has the table
-});
 app.use(cors());
-con.connect().then(() => console.log("connected"));
-
+con.query('SELECT NOW()', (err, res) => {
+    if (err) {
+        console.error("Query error:", err);
+    } else {
+        console.log("Current time from DB:", res.rows[0]);
+    }
+});
 app.post('/post', (req, res) => {
   const { name, id } = req.body;
 
@@ -62,39 +60,74 @@ app.get('/getid/:id', (req, res) => {
     });
 });
 
-app.post('/login',(req,res)=>{
-    const {phonenumber,password} = req.body;
+app.post('/login', (req, res) => {
+    const { phonenumber, password } = req.body;
+    console.log(req.body);
 
     const loginquery = 'SELECT * FROM users WHERE phonenumber = $1 AND password = $2';
 
-    con.query(loginquery,[phonenumber,password],(err,result)=>{
-        if(err)
-        {
-            console.info("db error", err.message)
-            return res.status(500).json({
-                status:-1,
-                message:'Database error'
-            })
-        }
-        if(result.rows.length === 0)
-        {
-            console.info("db error")
-            return res.status(401).json({
-                status:-2,
-                message:'Invalid phone number or password'
-            })
-        }
-         const user = result.rows[0];
-        res.status(200).json({
-      status: 0,
-      message: 'Login successful',
-      data: {
-        name: user.name,
-        id:user.id
-      }
-    });
-    });
+    if (phonenumber === '7') {  // Admin check
+        con.query(loginquery, [phonenumber, password], (err, result) => {
+            if (err) {
+                console.log(err.message);
+                return res.status(500).json({
+                    status: -1,
+                    message: err.message + "sss"
+                });
+            }
+            if (result.rows.length === 0) {
+                return res.status(401).json({
+                    status: -2,
+                    message: 'Invalid admin credentials'
+                });
+            }
+            const user = result.rows[0];
+            return res.status(200).json({
+                status: 0,
+                message: "Welcome admin",
+                data: {
+                    name: user.name,
+                    id: user.id
+                }
+            });
+        });
+    } else {  // Normal user login
+        con.query(loginquery, [phonenumber, password], (err, result) => {
+            if (err) {
+                console.info("db error2", err.message);
+                return res.status(500).json({
+                    status: -1,
+                    message: 'Database error'
+                });
+            }
+            if (result.rows.length === 0) {
+                console.info("db error1");
+                return res.status(401).json({
+                    status: -2,
+                    message: 'Invalid phone number or password'
+                });
+            }
+            const user = result.rows[0];
+            res.status(200).json({
+                status: 100,
+                message: 'Login successful',
+                data: {
+                    name: user.name,
+                    id: user.id
+                }
+            });
+        });
+    }
 });
+
+app.get('/getbills', (req, res)=>{
+  const {id} = req.params
+  const getbillsquery = 'SELECT * FROM chitbills';
+  con.query(getbillsquery,[id],(err,result)=>{
+  return res.send(result)
+  })
+
+})
 
 
 app.post('/change-password', (req, res) => {
@@ -134,5 +167,5 @@ app.get('/getalluserdata', (req,res)=>{
 })
 
 app.listen(3000, () => {
-    console.info("Server is running");
+    console.info("Server is running on local");
 });
